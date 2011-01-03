@@ -1,0 +1,43 @@
+<html>
+<head>
+<title>Run Stuff</title>
+<script type="text/javascript"
+ src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.4/jquery.js"></script>
+<script type="text/javascript"
+ src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.7/jquery-ui.js"></script>
+<script type="text/javascript"
+ src="jscrollpane/jquery.mousewheel.js"></script>
+<script type="text/javascript"
+ src="jscrollpane/mwheelIntent.js"></script>
+<script type="text/javascript"
+ src="jscrollpane/jquery.jscrollpane.js"></script>
+<script type="text/javascript" src="site.js"></script>
+<script type="text/javascript" src="commands.js"></script>
+<script type="text/javascript" src="parser.js"></script>
+<script type="text/javascript" src="path.js"></script>
+<link rel="stylesheet" type="text/css"
+ href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.7/themes/base/jquery-ui.css" />
+<link rel="stylesheet" type="text/css" href="site.css" />
+<link rel="stylesheet" type="text/css"
+ href="jscrollpane/jquery.jscrollpane.css" />
+</head>
+
+<body>
+
+<div class="interaction" id="main-console">
+<div class="meta">
+  dir: <span class="cwd">/</span> <br />
+  envs: <span class="envs"><span class="setting"><span
+  class="name">foo</span>=<span class="value">bar</span></span>
+</div>
+<div class="interactive scroll-pane">
+  <div class="output">
+    Welcome! <br />
+  </div>
+  <input type="text" style="width: 100%"
+   class="input" />
+</div>
+</div>
+
+</body>
+</html>

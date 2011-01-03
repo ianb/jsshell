@@ -1,0 +1,46 @@
+Shell quotes are translated into XML:
+
+"foo"
+  <string quote=double>foo</string>
+  {t:string,quote:double,c:'foo'}
+'foo'
+  <string quote=single>foo</string>
+  {t:string,quote=single,c:'foo'}
+foo
+  <string>foo</string>
+  {t:string,c:'foo'}
+$(foo)
+  <interpolate>foo</interpolate>
+  {t:interpolate,c:'foo'}
+$foo
+  <var>foo</var>
+  {t:var,c:'foo'}
+${foo}
+  <var quoted="1">foo</var>
+  {t:var,quoted:true,c:'foo'}
+`foo`
+  <interpolate backtick="1">foo</interpolate>
+  {t:interpolate,backtick:true,c:'foo'}
+*
+  <special>*</special>
+  {t:special,c:'*'}
+&
+  <special>&</special>
+  {t:special,c:'&'}
+Also: | || &&
+
+#foo
+  <comment>foo</comment>
+  {t:comment,c:'foo'}
+a b
+  <arg><string>a</string></arg> <arg><string>b</string></arg>
+  {t:doc,c:[{t:arg,c:[{t:string,c:'a'}]}, ' ', {t:arg,c:[{t:string,c:'b'}]}]}
+a\ b
+  <arg>a<backslash> </backslash>b</arg>
+  {t:arg,c:['a', {t:backslash,c:' '}, 'b']}
+"a\$b"
+  <string quote="double"><backslash>$</backslash>b</string>
+  {t:string,quote=double,c:['a', {t:backslash,c:'$'}, 'b']}
+\n
+  <backslash name="n">(newline)</backslash>
+  {t:backslash,name:'n',c:'\n'}

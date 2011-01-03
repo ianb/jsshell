@@ -1,0 +1,68 @@
+<html>
+<head>
+<title>Parse Test</title>
+<script type="text/javascript"
+ src="../../doctestjs/doctest.js"></script>
+<script type="text/javascript"
+ src="http://jashkenas.github.com/coffee-script/extras/coffee-script.js"></script>
+<script type="text/javascript"
+ src="parser.js"></script>
+<script type="text/javascript"
+ src="path.js"></script>
+<script type="text/javascript">
+doctest.useCoffeeScript();
+</script>
+<link rel="stylesheet" type="text/css" href="../../doctestjs/doctest.css" />
+<style type="text/css">
+body {
+  font-family: sans-serif;
+}
+</style>
+</head>
+
+<body class="autodoctest">
+
+<h1>Parse Test</h1>
+
+<div class="test">
+Test the parser
+<pre class="doctest">
+$ wx = (s) ->
+>   if typeof s == 'string'
+>     s = parse(s)
+>   writeln(s.toXML())
+$ wx('test this out')
+&lt;span>&lt;arg>test&lt;/arg> &lt;arg>this&lt;/arg> &lt;arg>out&lt;/arg>&lt;/span>
+$ wx('a $var1 ${var2}x')
+&lt;span>&lt;arg>a&lt;/arg> &lt;arg>&lt;var>var1&lt;/var>&lt;/arg> &lt;arg>&lt;var bracketed="1">var2&lt;/var>x&lt;/arg>&lt;/span>
+$ wx('"test this\\n" \'some\\thing\'else $(some "stuff") `else`')
+&lt;span>&lt;arg>&lt;string quote="double">test this&lt;backslash name="n">
+&lt;/backslash>&lt;/string>&lt;/arg> &lt;arg>&lt;string quote="single">some\thing&lt;/string>else&lt;/arg> &lt;arg>&lt;interpolate>&lt;arg>some&lt;/arg> &lt;arg>&lt;string quote="double">stuff&lt;/string>&lt;/arg>&lt;/interpolate>&lt;/arg> &lt;arg>&lt;interpolate backtick="1">&lt;arg>else&lt;/arg>&lt;/interpolate>&lt;/arg>&lt;/span>
+$ wx('ls *.c')
+&lt;span>&lt;arg>ls&lt;/arg> &lt;arg>&lt;wildcard>*.c&lt;/wildcard>&lt;/arg>&lt;/span>
+$ wx('ls ~/*.c ~bob/*.c')
+&lt;span>&lt;arg>ls&lt;/arg> &lt;arg>&lt;wildcard>&lt;homedir>~&lt;/homedir>/*.c&lt;/wildcard>&lt;/arg> &lt;arg>&lt;wildcard>&lt;homedir user="bob">~bob&lt;/homedir>/*.c&lt;/wildcard>&lt;/arg>&lt;/span>
+</pre>
+</div>
+
+<div class="test">
+Some path tests:
+<pre class="doctest">
+$ writeln pathjoin('a', 'b/', 'c')
+a/b/c
+$ writeln pathjoin('a', '/b/c', 'd')
+/b/c/d
+$ writeln normpath('/a/b/..')
+/a
+$ writeln normpath('/a/b/')
+/a/b
+$ writeln normpath('/a/../../b/c/../d')
+/b/d
+$ writeln normpath('/a/b///../c////')
+/a/c
+$ writeln normpath('/a/././b/')
+/a/b
+</pre>
+</div>
+
+</body> </html>
