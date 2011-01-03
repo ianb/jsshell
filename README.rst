@@ -80,6 +80,9 @@ nice for development, except for figuring out line offsets in errors
 it makes it almost seem like you are editing the native browser
 language.
 
+I've checked in the ``.js`` files so you can still run this without
+CoffeeScript installed.
+
 Interactive/Terminal programs
 -----------------------------
 
