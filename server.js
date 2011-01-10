@@ -51,6 +51,13 @@
     res.writeHead(200, {
       'Content-Type': 'text/javascript'
     });
+    sendData = function(data) {
+      return res.write(callback + '(' + JSON.stringify(callbackId) + ', ' + JSON.stringify(data) + ')\n');
+    };
+    sendData({
+      pid: proc.pid
+    });
+    res.write('\n');
     proc.stdout.on('data', function(data) {
       return sendData({
         stdout: data.toString()
@@ -61,15 +68,12 @@
         stderr: data.toString()
       });
     });
-    proc.on('exit', function(code, signal) {
+    return proc.on('exit', function(code, signal) {
       sendData({
         code: code
       });
       return res.end();
     });
-    return sendData = function(data) {
-      return res.write(callback + '(' + JSON.stringify(callbackId) + ', ' + JSON.stringify(data) + ')\n');
-    };
   };
   envProgram = function(req, res) {
     res.writeHead(200, {

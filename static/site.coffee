@@ -188,6 +188,8 @@ class Console
 
   clearConsole: ->
     $('.command-set, .incomplete-command-set', this.el).remove()
+    this.scroller.reinitialise()
+    this.scroller.scrollToBottom()
     this.persist()
 
   ## UI-related routines:
@@ -195,7 +197,6 @@ class Console
   inputKeyup: (event) ->
     if event.type != 'keyup'
       return
-    console.log('event', event, event.which)
     if event.which == 13
       # Enter
       this.runInputCommand()
@@ -220,6 +221,9 @@ class Console
       inputEl = $('input.input', this.el)
       inputEl.val(this.history[this.historyPos])
       return false
+    if event.which == 82 and event.altKey
+      # alt-R
+      return false
 
   runInputCommand: ->
     inputEl = $('input.input', this.el)
@@ -240,7 +244,7 @@ class Console
       ((node) =>
         display = node.toCommand()
         cmd.text(display)
-        cmd.attr(title: node.toXML())
+        #cmd.attr(title: node.toXML())
         this.writeEl(div)
         parts = node.toArgsNoInterpolate()
         command = new Command(parts[0], parts[1...], this.cwd(), this.env())
@@ -299,22 +303,6 @@ class Console
       ),
     )
 
-  dataReceived: (id, data) ->
-    console.log 'got data', id, data, data.code?
-    if data.stdout? or data.stderr?
-      if data.stdout?
-        cls = 'stdout'
-      else
-        cls = 'stderr'
-      this.write(data.stdout || data.stderr, cls, id)
-      # Ignore the other stuff
-    if data.code?
-      if id
-        el = $('#' + id, this.el)
-        el.removeClass('incomplete-command-set')
-        el.addClass('command-set')
-        this.persistSoon()
-
   persist: ->
     if not this.persistRestored
       return
@@ -337,6 +325,29 @@ class Console
     this.scroller.scrollToBottom()
     this.persistRestored = true
 
+  dataReceived: (id, data) ->
+    console.log 'data', id, data
+    if data.stdout? or data.stderr?
+      if data.stdout?
+        cls = 'stdout'
+      else
+        cls = 'stderr'
+      this.write(data.stdout || data.stderr, cls, id)
+      # Ignore the other stuff
+    if data.code? and id
+      el = $('#' + id, this.el)
+      el.removeClass('incomplete-command-set')
+      el.addClass('command-set')
+      el = $('.cmd', el)
+      if el.attr('title').search(/pid/) != -1
+        title = el.attr('title')
+        title = title.replace(/pid\:\s*\d+\s*/, '')
+        el.attr('title', title)
+      this.persistSoon()
+    if data.pid? and id
+      el = $('.cmd', $('#' + id, this.el))
+      console.log 'el', el
+      el.attr(title: 'pid: ' + data.pid + ' ' + el.attr('title'))
 
 expandWildcard = (callback, pattern, cwd, env) ->
   base = pattern

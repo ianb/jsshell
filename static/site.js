@@ -232,6 +232,8 @@
     };
     Console.prototype.clearConsole = function() {
       $('.command-set, .incomplete-command-set', this.el).remove();
+      this.scroller.reinitialise();
+      this.scroller.scrollToBottom();
       return this.persist();
     };
     Console.prototype.inputKeyup = function(event) {
@@ -239,7 +241,6 @@
       if (event.type !== 'keyup') {
         return;
       }
-      console.log('event', event, event.which);
       if (event.which === 13) {
         this.runInputCommand();
         return false;
@@ -268,6 +269,9 @@
         inputEl.val(this.history[this.historyPos]);
         return false;
       }
+      if (event.which === 82 && event.altKey) {
+        return false;
+      }
     };
     Console.prototype.runInputCommand = function() {
       var cmd, cmdLine, div, input, inputEl, node, sym;
@@ -290,9 +294,6 @@
         var command, display, parts;
         display = node.toCommand();
         cmd.text(display);
-        cmd.attr({
-          title: node.toXML()
-        });
         this.writeEl(div);
         parts = node.toArgsNoInterpolate();
         command = new Command(parts[0], parts.slice(1), this.cwd(), this.env());
@@ -342,26 +343,6 @@
         }), pattern, this.cwd(), this.env());
       }, this)));
     };
-    Console.prototype.dataReceived = function(id, data) {
-      var cls, el;
-      console.log('got data', id, data, data.code != null);
-      if ((data.stdout != null) || (data.stderr != null)) {
-        if (data.stdout != null) {
-          cls = 'stdout';
-        } else {
-          cls = 'stderr';
-        }
-        this.write(data.stdout || data.stderr, cls, id);
-      }
-      if (data.code != null) {
-        if (id) {
-          el = $('#' + id, this.el);
-          el.removeClass('incomplete-command-set');
-          el.addClass('command-set');
-          return this.persistSoon();
-        }
-      }
-    };
     Console.prototype.persist = function() {
       var p;
       if (!this.persistRestored) {
@@ -387,6 +368,37 @@
       this.scroller.reinitialise();
       this.scroller.scrollToBottom();
       return this.persistRestored = true;
+    };
+    Console.prototype.dataReceived = function(id, data) {
+      var cls, el, title;
+      console.log('data', id, data);
+      if ((data.stdout != null) || (data.stderr != null)) {
+        if (data.stdout != null) {
+          cls = 'stdout';
+        } else {
+          cls = 'stderr';
+        }
+        this.write(data.stdout || data.stderr, cls, id);
+      }
+      if ((data.code != null) && id) {
+        el = $('#' + id, this.el);
+        el.removeClass('incomplete-command-set');
+        el.addClass('command-set');
+        el = $('.cmd', el);
+        if (el.attr('title').search(/pid/) !== -1) {
+          title = el.attr('title');
+          title = title.replace(/pid\:\s*\d+\s*/, '');
+          el.attr('title', title);
+        }
+        this.persistSoon();
+      }
+      if ((data.pid != null) && id) {
+        el = $('.cmd', $('#' + id, this.el));
+        console.log('el', el);
+        return el.attr({
+          title: 'pid: ' + data.pid + ' ' + el.attr('title')
+        });
+      }
     };
     return Console;
   })();

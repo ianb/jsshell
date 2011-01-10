@@ -32,6 +32,11 @@ jsonpRunProgram = (req, res) ->
   console.log('args', JSON.stringify([params, params.command, args, {cwd: cwd, env: params.env}]))
   proc = spawn(params.command, args, {cwd: cwd, env: env})
   res.writeHead(200, 'Content-Type': 'text/javascript')
+  sendData = (data) ->
+    res.write(callback + '(' + JSON.stringify(callbackId) +
+              ', ' + JSON.stringify(data) + ')\n')
+  sendData(pid: proc.pid)
+  res.write('\n')
   proc.stdout.on 'data', (data) ->
     sendData(stdout: data.toString())
   proc.stderr.on 'data', (data) ->
@@ -39,9 +44,6 @@ jsonpRunProgram = (req, res) ->
   proc.on 'exit', (code, signal) ->
     sendData(code: code)
     res.end()
-  sendData = (data) ->
-    res.write(callback + '(' + JSON.stringify(callbackId) +
-              ', ' + JSON.stringify(data) + ')\n')
 
 
 envProgram = (req, res) ->
