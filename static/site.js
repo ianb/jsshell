@@ -1,5 +1,5 @@
 (function() {
-  var Command, Console, Persister, dataReceiver, expandWildcard, genSym, getHomeDir, processEnv, scroller, splitId;
+  var Command, Console, Persister, dataReceiver, expandFile, expandWildcard, genSym, getHomeDir, processEnv, scroller, splitId;
   var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
   window.scroller = scroller = null;
   $(function() {
@@ -8,10 +8,11 @@
       mainConsole = window.mainConsole = new Console($('#main-console'));
       mainConsole.restore();
       mainConsole.focus();
-      return $('#main-console').click(function() {
+      $('#main-console').click(function() {
         return mainConsole.focus();
       });
     }
+    return $('.file').live('click', expandFile);
   });
   processEnv = null;
   $.ajax({
@@ -231,7 +232,7 @@
       }
     };
     Console.prototype.clearConsole = function() {
-      $('.command-set, .incomplete-command-set', this.el).remove();
+      $('.output', this.el).html('');
       this.scroller.reinitialise();
       this.scroller.scrollToBottom();
       return this.persist();
@@ -273,6 +274,7 @@
         return false;
       }
     };
+    Console.prototype.commandRegistry = {};
     Console.prototype.runInputCommand = function() {
       var cmd, cmdLine, div, input, inputEl, node, sym;
       inputEl = $('input.input', this.el);
@@ -291,12 +293,22 @@
       div.append(cmdLine);
       node = parse(input);
       return node.toArgs((__bind(function(node) {
-        var command, display, parts;
+        var command, display, filter, filters, parts, _i, _len;
         display = node.toCommand();
         cmd.text(display);
         this.writeEl(div);
         parts = node.toArgsNoInterpolate();
         command = new Command(parts[0], parts.slice(1), this.cwd(), this.env());
+        this.commandRegistry[sym] = command;
+        filters = commandSet.match(command.command, command);
+        if (filters.length) {
+          for (_i = 0, _len = filters.length; _i < _len; _i++) {
+            filter = filters[_i];
+            if (filter.changeCommand) {
+              filter.changeCommand(command);
+            }
+          }
+        }
         command.runCommand({
           callback: this.boundReceiver,
           id: this.callbackId + '.' + sym,
@@ -356,10 +368,11 @@
       p.save('html', $('.output', this.el).html());
       p.save('history', this.history);
       p.save('cwd', this.cwd());
-      return p.save('env', this.env());
+      p.save('env', this.env());
+      return p.save('genSym', genSym.counter);
     };
     Console.prototype.restore = function() {
-      var p;
+      var c, p;
       p = this.persister;
       $('.output', this.el).html(p.get('html', ''));
       this.history = p.get('history', []);
@@ -367,25 +380,57 @@
       this.env(p.get('env', {}));
       this.scroller.reinitialise();
       this.scroller.scrollToBottom();
-      return this.persistRestored = true;
+      this.persistRestored = true;
+      c = p.get('genSym', 0);
+      if (c > genSym.counter) {
+        return genSym.counter = c;
+      }
     };
     Console.prototype.dataReceived = function(id, data) {
-      var cls, el, title;
+      var cls, command, el, filter, filters, matched, title, _i, _len;
       console.log('data', id, data);
+      command = this.commandRegistry[id];
+      if (command) {
+        filters = commandSet.match(command.command, command);
+      } else {
+        filters = [];
+      }
       if ((data.stdout != null) || (data.stderr != null)) {
         if (data.stdout != null) {
           cls = 'stdout';
         } else {
           cls = 'stderr';
         }
-        this.write(data.stdout || data.stderr, cls, id);
+        matched = false;
+        if (filters.length) {
+          for (_i = 0, _len = filters.length; _i < _len; _i++) {
+            filter = filters[_i];
+            if (data.stdout && filter.filterStdout) {
+              filter.filterStdout((__bind(function(el) {
+                return this.writeEl(el, id);
+              }, this)), command, data.stdout);
+              matched = true;
+              break;
+            }
+            if (data.stderr && filter.filterStderr) {
+              filter.filterStderr((__bind(function(el) {
+                return this.writeEl(el);
+              }, this)), command, data.stderr);
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched) {
+          this.write(data.stdout || data.stderr, cls, id);
+        }
       }
       if ((data.code != null) && id) {
         el = $('#' + id, this.el);
         el.removeClass('incomplete-command-set');
         el.addClass('command-set');
         el = $('.cmd', el);
-        if (el.attr('title').search(/pid/) !== -1) {
+        if ((el.attr('title') || '').search(/pid/) !== -1) {
           title = el.attr('title');
           title = title.replace(/pid\:\s*\d+\s*/, '');
           el.attr('title', title);
@@ -394,7 +439,6 @@
       }
       if ((data.pid != null) && id) {
         el = $('.cmd', $('#' + id, this.el));
-        console.log('el', el);
         return el.attr({
           title: 'pid: ' + data.pid + ' ' + el.attr('title')
         });
@@ -424,7 +468,6 @@
     return command.getOutput((function(stdout, stderr) {
       var doc, file, files, _i, _len;
       files = stdout.split('\u0000');
-      console.log('result', stdout, files);
       doc = new Node('span');
       for (_i = 0, _len = files.length; _i < _len; _i++) {
         file = files[_i];
@@ -492,4 +535,9 @@
     };
     return Persister;
   })();
+  expandFile = function(event) {
+    return $(event.target).css({
+      "background-color": "#f00"
+    });
+  };
 }).call(this);

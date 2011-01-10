@@ -1,5 +1,3 @@
-commands = window.commands = {}
-
 class CommandSet
 
   constructor: ->
@@ -23,19 +21,17 @@ class CommandSet
   add: (name, func) ->
     this.commands[name] = func
 
-  addFilter: (type, name, matchFunc, obj) ->
-    if not (type of this.filters)
-      this.filters[type] = {}
-    if not (name of this.filters[type])
-      this.filters[type][name] = []
-    this.filters[type][name].push([matchFunc, obj])
+  addFilter: (name, matchFunc, obj) ->
+    if not (name of this.filters)
+      this.filters[name] = []
+    this.filters[name].push([matchFunc, obj])
 
-  match: (type, name, thing) ->
+  match: (name, thing) ->
     result = []
     for matchName in [name, '*']
-      if this.filters[type][matchName]
-        for matchFunc, obj in this.filters[type][matchName]
-          if not matchFunc or matchFunc(thing)
+      if this.filters[matchName]
+        for [matchFunc, obj] in this.filters[matchName]
+          if (not matchFunc?) or matchFunc(thing)
             result.push(obj)
     return result
 
@@ -80,18 +76,45 @@ commandSet.add '', (command, outputer, console) ->
   outputer(code: 0)
 
 
-commandSet.addFilter 'output', 'ls', null, {
+commandSet.addFilter 'ls', null, {
     complete: false,
     filterStdout: (callback, command, data) ->
       lines = data.split(/\n/)
-      result = $('<span></span>')
       for line in lines
-        a = $('<a></a>')
-        a.attr('href', command.cwd + '/' + line)
-        a.text(line)
-        a.addClass('file')
-        result.append(a)
-      callback(result)
+        if not line
+          continue
+        result = $('<span class="file"></span>')
+        parts = parseLs(line)
+        result.attr(parts)
+        result.text(parts.filename)
+        callback(result)
+        callback($('<br>'))
+    changeCommand: (command) ->
+      command.args.push('-l')
   }
 
+getMatch = (regex, line) ->
+  m = regex.exec(line)
+  if m
+    rest = line.substr(m.index + m[0].length)
+    rest = rest.replace(/^\s+/, '')
+    return [m[0], rest]
+  else
+    return [null, line]
+
+parseLs = (line) ->
+  results = {}
+  [results.perms, rest] = getMatch(/[drwx-]+/, line)
+  [huh, rest] = getMatch(/\d+/, rest)
+  [results.user, rest] = getMatch(/[a-zA-Z][a-zA-Z0-9_-]*/, rest)
+  [results.group, rest] = getMatch(/[a-zA-Z][a-zA-Z0-9_-]*/, rest)
+  [results.size, rest] = getMatch(/[0-9]+[MKG]?/, rest)
+  [results.date, rest] = getMatch(/\d\d\d\d-\d\d-\d\d/, rest)
+  [results.time, rest] = getMatch(/\d\d:\d\d/, rest)
+  if rest.search(/->/) != -1
+    m = /^(.*)\s+->\s+(.*)$/.exec(rest)
+    results.symlink = m[1]
+    rest = m[2]
+  results.filename = rest
+  return results
 

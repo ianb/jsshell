@@ -10,6 +10,8 @@ $( () ->
       mainConsole.focus()
     )
 
+  $('.file').live('click', expandFile);
+
 )
 
 processEnv = null
@@ -187,7 +189,8 @@ class Console
       return result
 
   clearConsole: ->
-    $('.command-set, .incomplete-command-set', this.el).remove()
+    #$('.command-set, .incomplete-command-set', this.el).remove()
+    $('.output', this.el).html('')
     this.scroller.reinitialise()
     this.scroller.scrollToBottom()
     this.persist()
@@ -225,6 +228,8 @@ class Console
       # alt-R
       return false
 
+  commandRegistry: {}
+
   runInputCommand: ->
     inputEl = $('input.input', this.el)
     input = inputEl.val()
@@ -248,6 +253,13 @@ class Console
         this.writeEl(div)
         parts = node.toArgsNoInterpolate()
         command = new Command(parts[0], parts[1...], this.cwd(), this.env())
+        this.commandRegistry[sym] = command
+        filters = commandSet.match(command.command, command)
+        if filters.length
+          for filter in filters
+            if filter.changeCommand
+              ## FIXME: should be asyncable
+              filter.changeCommand(command)
         command.runCommand(
           callback: this.boundReceiver,
           id: this.callbackId + '.' + sym,
@@ -314,6 +326,7 @@ class Console
     p.save('history', this.history)
     p.save('cwd', this.cwd())
     p.save('env', this.env())
+    p.save('genSym', genSym.counter)
 
   restore: ->
     p = this.persister
@@ -324,29 +337,57 @@ class Console
     this.scroller.reinitialise()
     this.scroller.scrollToBottom()
     this.persistRestored = true
+    c = p.get('genSym', 0)
+    if c > genSym.counter
+      genSym.counter = c
 
   dataReceived: (id, data) ->
     console.log 'data', id, data
+    command = this.commandRegistry[id]
+    if command
+      filters = commandSet.match(command.command, command)
+    else
+      filters = []
     if data.stdout? or data.stderr?
       if data.stdout?
         cls = 'stdout'
       else
         cls = 'stderr'
-      this.write(data.stdout || data.stderr, cls, id)
+      matched = false
+      if filters.length
+        for filter in filters
+          ## FIXME: check for .complete
+          if data.stdout and filter.filterStdout
+            filter.filterStdout(((el) =>
+                this.writeEl(el, id)
+              ),
+              command,
+              data.stdout)
+            matched = true
+            break
+          if data.stderr and filter.filterStderr
+            filter.filterStderr(((el) =>
+                this.writeEl(el)
+              ),
+              command,
+              data.stderr)
+            matched = true
+            break
+      if not matched
+        this.write(data.stdout || data.stderr, cls, id)
       # Ignore the other stuff
     if data.code? and id
       el = $('#' + id, this.el)
       el.removeClass('incomplete-command-set')
       el.addClass('command-set')
       el = $('.cmd', el)
-      if el.attr('title').search(/pid/) != -1
+      if (el.attr('title') || '').search(/pid/) != -1
         title = el.attr('title')
         title = title.replace(/pid\:\s*\d+\s*/, '')
         el.attr('title', title)
       this.persistSoon()
     if data.pid? and id
       el = $('.cmd', $('#' + id, this.el))
-      console.log 'el', el
       el.attr(title: 'pid: ' + data.pid + ' ' + el.attr('title'))
 
 expandWildcard = (callback, pattern, cwd, env) ->
@@ -368,7 +409,6 @@ expandWildcard = (callback, pattern, cwd, env) ->
   command.getOutput(
     ((stdout, stderr) ->
       files = stdout.split('\u0000')
-      console.log 'result', stdout, files
       doc = new Node('span')
       for file in files
         if file.substr(0, 2) == './'
@@ -425,3 +465,7 @@ class Persister
       return JSON.parse(v)
     else
       return defaultValue
+
+expandFile = (event) ->
+  ## FIXME: expand to show some more info
+  $(event.target).css("background-color": "#f00")

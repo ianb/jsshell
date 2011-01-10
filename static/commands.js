@@ -1,12 +1,11 @@
 (function() {
-  var CommandSet, commandSet, commands;
+  var CommandSet, commandSet, getMatch, parseLs;
   var __indexOf = Array.prototype.indexOf || function(item) {
     for (var i = 0, l = this.length; i < l; i++) {
       if (this[i] === item) return i;
     }
     return -1;
   };
-  commands = window.commands = {};
   CommandSet = (function() {
     function CommandSet() {
       this.commands = {};
@@ -33,26 +32,23 @@
     CommandSet.prototype.add = function(name, func) {
       return this.commands[name] = func;
     };
-    CommandSet.prototype.addFilter = function(type, name, matchFunc, obj) {
-      if (!(type in this.filters)) {
-        this.filters[type] = {};
+    CommandSet.prototype.addFilter = function(name, matchFunc, obj) {
+      if (!(name in this.filters)) {
+        this.filters[name] = [];
       }
-      if (!(name in this.filters[type])) {
-        this.filters[type][name] = [];
-      }
-      return this.filters[type][name].push([matchFunc, obj]);
+      return this.filters[name].push([matchFunc, obj]);
     };
-    CommandSet.prototype.match = function(type, name, thing) {
-      var matchFunc, matchName, obj, result, _i, _len, _len2, _ref, _ref2;
+    CommandSet.prototype.match = function(name, thing) {
+      var matchFunc, matchName, obj, result, _i, _j, _len, _len2, _ref, _ref2, _ref3;
       result = [];
       _ref = [name, '*'];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         matchName = _ref[_i];
-        if (this.filters[type][matchName]) {
-          _ref2 = this.filters[type][matchName];
-          for (obj = 0, _len2 = _ref2.length; obj < _len2; obj++) {
-            matchFunc = _ref2[obj];
-            if (!matchFunc || matchFunc(thing)) {
+        if (this.filters[matchName]) {
+          _ref2 = this.filters[matchName];
+          for (_j = 0, _len2 = _ref2.length; _j < _len2; _j++) {
+            _ref3 = _ref2[_j], matchFunc = _ref3[0], obj = _ref3[1];
+            if ((!(matchFunc != null)) || matchFunc(thing)) {
               result.push(obj);
             }
           }
@@ -144,21 +140,57 @@
       code: 0
     });
   });
-  commandSet.addFilter('output', 'ls', null, {
+  commandSet.addFilter('ls', null, {
     complete: false,
     filterStdout: function(callback, command, data) {
-      var a, line, lines, result, _i, _len;
+      var line, lines, parts, result, _i, _len, _results;
       lines = data.split(/\n/);
-      result = $('<span></span>');
+      _results = [];
       for (_i = 0, _len = lines.length; _i < _len; _i++) {
         line = lines[_i];
-        a = $('<a></a>');
-        a.attr('href', command.cwd + '/' + line);
-        a.text(line);
-        a.addClass('file');
-        result.append(a);
+        if (!line) {
+          continue;
+        }
+        result = $('<span class="file"></span>');
+        parts = parseLs(line);
+        result.attr(parts);
+        result.text(parts.filename);
+        callback(result);
+        _results.push(callback($('<br>')));
       }
-      return callback(result);
+      return _results;
+    },
+    changeCommand: function(command) {
+      return command.args.push('-l');
     }
   });
+  getMatch = function(regex, line) {
+    var m, rest;
+    m = regex.exec(line);
+    if (m) {
+      rest = line.substr(m.index + m[0].length);
+      rest = rest.replace(/^\s+/, '');
+      return [m[0], rest];
+    } else {
+      return [null, line];
+    }
+  };
+  parseLs = function(line) {
+    var huh, m, rest, results, _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+    results = {};
+    _ref = getMatch(/[drwx-]+/, line), results.perms = _ref[0], rest = _ref[1];
+    _ref2 = getMatch(/\d+/, rest), huh = _ref2[0], rest = _ref2[1];
+    _ref3 = getMatch(/[a-zA-Z][a-zA-Z0-9_-]*/, rest), results.user = _ref3[0], rest = _ref3[1];
+    _ref4 = getMatch(/[a-zA-Z][a-zA-Z0-9_-]*/, rest), results.group = _ref4[0], rest = _ref4[1];
+    _ref5 = getMatch(/[0-9]+[MKG]?/, rest), results.size = _ref5[0], rest = _ref5[1];
+    _ref6 = getMatch(/\d\d\d\d-\d\d-\d\d/, rest), results.date = _ref6[0], rest = _ref6[1];
+    _ref7 = getMatch(/\d\d:\d\d/, rest), results.time = _ref7[0], rest = _ref7[1];
+    if (rest.search(/->/) !== -1) {
+      m = /^(.*)\s+->\s+(.*)$/.exec(rest);
+      results.symlink = m[1];
+      rest = m[2];
+    }
+    results.filename = rest;
+    return results;
+  };
 }).call(this);
