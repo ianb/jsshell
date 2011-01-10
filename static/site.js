@@ -1,12 +1,16 @@
 (function() {
-  var Command, Console, dataReceiver, expandWildcard, genSym, getHomeDir, processEnv, scroller;
+  var Command, Console, Persister, dataReceiver, expandWildcard, genSym, getHomeDir, processEnv, scroller, splitId;
   var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
   window.scroller = scroller = null;
   $(function() {
     var mainConsole;
     if ($('#main-console').length) {
       mainConsole = window.mainConsole = new Console($('#main-console'));
-      return mainConsole.focus();
+      mainConsole.restore();
+      mainConsole.focus();
+      return $('#main-console').click(function() {
+        return mainConsole.focus();
+      });
     }
   });
   processEnv = null;
@@ -25,10 +29,11 @@
       this.env = env;
     }
     Command.prototype.runCommand = function(callbackInfo) {
-      var data;
+      var data, nextId;
       if (commandSet.has(this)) {
+        nextId = splitId(callbackInfo.id)[1];
         commandSet.run(this, (function(data) {
-          return callbackInfo.console.boundReceiver(null, data);
+          return callbackInfo.console.boundReceiver(nextId, data);
         }), callbackInfo.console);
         callbackInfo.console.scroller.reinitialise();
         return callbackInfo.console.scroller.scrollToBottom();
@@ -109,11 +114,27 @@
       }, this));
       this.scroller = $('.scroll-pane', this.el).jScrollPane().data('jsp');
       this.homeCache = {};
+      this.history = [];
+      this.historySearch = null;
+      this.historyPos = null;
+      this.persister = new Persister();
+      this.persistId = null;
+      this.persistRestored = false;
     }
+    Console.prototype.persistSoon = function(time) {
+      if (time == null) {
+        time = 1000;
+      }
+      if (!(this.persistId != null)) {
+        return this.saverId = setTimeout((__bind(function() {
+          return this.persist();
+        }, this)), time);
+      }
+    };
     Console.prototype.focus = function() {
       return $('input.input', this.el).focus();
     };
-    Console.prototype.write = function(output, type) {
+    Console.prototype.write = function(output, type, id) {
       var el;
       if (type == null) {
         type = 'stdout';
@@ -121,12 +142,19 @@
       el = $('<span>');
       el.addClass(type);
       el.text(output);
-      return this.writeEl(el);
+      return this.writeEl(el, id);
     };
-    Console.prototype.writeEl = function(el) {
-      $('.output', this.el).append(el);
+    Console.prototype.writeEl = function(el, id) {
+      var container;
+      if (id) {
+        container = $('#' + id, this.el);
+      } else {
+        container = $('.output', this.el);
+      }
+      container.append(el);
       this.scroller.reinitialise();
-      return this.scroller.scrollToBottom();
+      this.scroller.scrollToBottom();
+      return this.persistSoon();
     };
     Console.prototype.cwd = function(dir) {
       var cwdEl, els, newEl;
@@ -141,6 +169,7 @@
           cwdEl = els[els.length - 1];
         }
         $(cwdEl).text(dir);
+        this.persist();
         return dir;
       } else {
         els = $('.meta .cwd', this.el);
@@ -151,8 +180,16 @@
       }
     };
     Console.prototype.env = function(name, value) {
-      var el, els, n, parent, result, v, _i, _j, _k, _len, _len2, _len3;
-      if (value !== void 0) {
+      var el, els, n, parent, result, setName, v, _i, _j, _k, _len, _len2, _len3, _results;
+      if (typeof name === 'object') {
+        $('.meta .envs .setting').remove();
+        _results = [];
+        for (setName in name) {
+          value = name[setName];
+          _results.push(this.env(setName, value));
+        }
+        return _results;
+      } else if (value !== void 0) {
         els = $('.meta .envs .setting', this.el);
         if (value === null) {
           for (_i = 0, _len = els.length; _i < _len; _i++) {
@@ -176,6 +213,7 @@
           $('.value', v).text(value);
           parent.append(v);
         }
+        this.persist();
         return value;
       } else {
         els = $('.meta .envs .setting', this.el);
@@ -192,36 +230,79 @@
         return result;
       }
     };
+    Console.prototype.clearConsole = function() {
+      $('.command-set, .incomplete-command-set', this.el).remove();
+      return this.persist();
+    };
     Console.prototype.inputKeyup = function(event) {
+      var inputEl;
       if (event.type !== 'keyup') {
         return;
       }
+      console.log('event', event, event.which);
       if (event.which === 13) {
         this.runInputCommand();
         return false;
       }
+      if (event.which === 38) {
+        if (!(this.historyPos != null)) {
+          this.historyPos = this.history.length;
+        }
+        this.historyPos--;
+        if (this.historyPos < 0) {
+          this.historyPos = 0;
+        }
+        inputEl = $('input.input', this.el);
+        inputEl.val(this.history[this.historyPos]);
+        return false;
+      }
+      if (event.which === 40) {
+        if (!(this.historyPos != null)) {
+          return false;
+        }
+        this.historyPos++;
+        if (this.historyPos > this.history.length) {
+          this.historyPos = this.history.length;
+        }
+        inputEl = $('input.input', this.el);
+        inputEl.val(this.history[this.historyPos]);
+        return false;
+      }
     };
     Console.prototype.runInputCommand = function() {
-      var cmd, cmdLine, input, inputEl, node;
+      var cmd, cmdLine, div, input, inputEl, node, sym;
       inputEl = $('input.input', this.el);
       input = inputEl.val();
+      this.history.push(input);
+      this.historyPos = null;
+      this.historySearch = null;
       inputEl.val('');
-      cmdLine = $('<span class="cmd-line incomplete"><span class="prompt">$</prompt> <span class="cmd"></span> <br />');
+      div = $('<div class="incomplete-command-set"></div>');
+      sym = 'cmd-output-' + genSym();
+      div.attr({
+        id: sym
+      });
+      cmdLine = $('<span class="cmd-line"><span class="cmd"></span> <br />');
       cmd = $('.cmd', cmdLine);
+      div.append(cmdLine);
       node = parse(input);
       return node.toArgs((__bind(function(node) {
         var command, display, parts;
-        display = node.toCommand() + ' ' + node.toXML();
+        display = node.toCommand();
         cmd.text(display);
-        this.writeEl(cmdLine);
+        cmd.attr({
+          title: node.toXML()
+        });
+        this.writeEl(div);
         parts = node.toArgsNoInterpolate();
         command = new Command(parts[0], parts.slice(1), this.cwd(), this.env());
-        return command.runCommand({
+        command.runCommand({
           callback: this.boundReceiver,
-          id: this.callbackId,
+          id: this.callbackId + '.' + sym,
           name: 'dataReceiver',
           console: this
         });
+        return this.persist();
       }, this)), (__bind(function(node, callback) {
         var user;
         user = node.user;
@@ -262,15 +343,50 @@
       }, this)));
     };
     Console.prototype.dataReceived = function(id, data) {
-      var cls;
-      if (data.stdout || data.stderr) {
+      var cls, el;
+      console.log('got data', id, data, data.code != null);
+      if ((data.stdout != null) || (data.stderr != null)) {
         if (data.stdout != null) {
           cls = 'stdout';
         } else {
           cls = 'stderr';
         }
-        return this.write(data.stdout || data.stderr, cls);
+        this.write(data.stdout || data.stderr, cls, id);
       }
+      if (data.code != null) {
+        if (id) {
+          el = $('#' + id, this.el);
+          el.removeClass('incomplete-command-set');
+          el.addClass('command-set');
+          return this.persistSoon();
+        }
+      }
+    };
+    Console.prototype.persist = function() {
+      var p;
+      if (!this.persistRestored) {
+        return;
+      }
+      if (this.persistId) {
+        cancelTimeout(this.persistId);
+        this.persistId = null;
+      }
+      p = this.persister;
+      p.save('html', $('.output', this.el).html());
+      p.save('history', this.history);
+      p.save('cwd', this.cwd());
+      return p.save('env', this.env());
+    };
+    Console.prototype.restore = function() {
+      var p;
+      p = this.persister;
+      $('.output', this.el).html(p.get('html', ''));
+      this.history = p.get('history', []);
+      this.cwd(p.get('cwd', '/'));
+      this.env(p.get('env', {}));
+      this.scroller.reinitialise();
+      this.scroller.scrollToBottom();
+      return this.persistRestored = true;
     };
     return Console;
   })();
@@ -321,16 +437,47 @@
   };
   genSym.counter = 0;
   window.dataReceiver = dataReceiver = function(id, data) {
-    var curId, nextId, receiver;
-    if (id.indexOf('.') !== -1) {
-      curId = id.substr(0, id.indexOf('.'));
-      nextId = id.substr(id.indexOf('.') + 1);
-    } else {
-      curId = id;
-      nextId = null;
-    }
-    receiver = arguments.callee.receivers[id];
+    var curId, nextId, receiver, _ref;
+    _ref = splitId(id), curId = _ref[0], nextId = _ref[1];
+    receiver = arguments.callee.receivers[curId];
     return receiver(nextId, data);
   };
+  splitId = function(id) {
+    if (id.indexOf('.') !== -1) {
+      return [id.substr(0, id.indexOf('.')), id.substr(id.indexOf('.') + 1)];
+    } else {
+      return [id, null];
+    }
+  };
   dataReceiver.receivers = {};
+  Persister = (function() {
+    function Persister(storage) {
+      if (!(storage != null)) {
+        storage = window.localStorage;
+      }
+      this.storage = storage;
+    }
+    Persister.prototype.save = function(key, value) {
+      var v;
+      if (v === null) {
+        return this.storage.removeItem(key);
+      } else {
+        v = JSON.stringify(value);
+        return this.storage.setItem(key, v);
+      }
+    };
+    Persister.prototype.get = function(key, defaultValue) {
+      var v;
+      if (defaultValue == null) {
+        defaultValue = null;
+      }
+      v = this.storage.getItem(key);
+      if (v != null) {
+        return JSON.parse(v);
+      } else {
+        return defaultValue;
+      }
+    };
+    return Persister;
+  })();
 }).call(this);

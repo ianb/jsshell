@@ -9,10 +9,12 @@ class CommandSet
   has: (command) ->
     if typeof command != 'string'
       command = command.command
+    if not command?
+      command = ''
     return command of this.commands
 
   run: (command, outputer, console) ->
-    c = this.commands[command.command]
+    c = this.commands[command.command || '']
     result = c(command, outputer, console)
     result ||= 0
     ## FIXME: id?
@@ -44,6 +46,7 @@ commandSet.add 'cd', (command, outputer, console) ->
     outputer(stdout: "Usage: cd DIR")
     return if '-h' in command.args then 0 else 1
   console.cwd(command.args[0])
+  outputer(code: 0)
 
 commandSet.add 'setenv', (command, outputer, console) ->
   if not command.args.length
@@ -52,6 +55,7 @@ commandSet.add 'setenv', (command, outputer, console) ->
     keys.sort()
     for key in keys
       outputer(stdout: key + '=' + env[key] + '\n')
+    outputer(code: 0)
     return
   if command.args.length == 1
     value = command.env[command.args[0]]
@@ -59,11 +63,22 @@ commandSet.add 'setenv', (command, outputer, console) ->
       outputer(stdout: command.args[0] + '=' + value + '\n')
     else
       outputer(stdout: command.args[0] + ' no value\n')
+    outputer(code: 0)
     return
   if '-h' in command.args
     outputer(stdout: "Usage: setenv NAME VALUE")
+    outputer(code: 0)
     return
   console.env(command.args[0], command.args[1])
+  outputer(code: 0)
+
+commandSet.add 'clear', (command, outputer, console) ->
+  console.clearConsole()
+  outputer(code: 0)
+
+commandSet.add '', (command, outputer, console) ->
+  outputer(code: 0)
+
 
 commandSet.addFilter 'output', 'ls', null, {
     complete: false,

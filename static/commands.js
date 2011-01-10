@@ -16,11 +16,14 @@
       if (typeof command !== 'string') {
         command = command.command;
       }
+      if (!(command != null)) {
+        command = '';
+      }
       return command in this.commands;
     };
     CommandSet.prototype.run = function(command, outputer, console) {
       var c, result;
-      c = this.commands[command.command];
+      c = this.commands[command.command || ''];
       result = c(command, outputer, console);
       result || (result = 0);
       return console.dataReceived(null, {
@@ -71,7 +74,10 @@
         return 1;
       }
     }
-    return console.cwd(command.args[0]);
+    console.cwd(command.args[0]);
+    return outputer({
+      code: 0
+    });
   });
   commandSet.add('setenv', function(command, outputer, console) {
     var env, key, keys, value, _i, _len;
@@ -92,6 +98,9 @@
           stdout: key + '=' + env[key] + '\n'
         });
       }
+      outputer({
+        code: 0
+      });
       return;
     }
     if (command.args.length === 1) {
@@ -105,15 +114,35 @@
           stdout: command.args[0] + ' no value\n'
         });
       }
+      outputer({
+        code: 0
+      });
       return;
     }
     if (__indexOf.call(command.args, '-h') >= 0) {
       outputer({
         stdout: "Usage: setenv NAME VALUE"
       });
+      outputer({
+        code: 0
+      });
       return;
     }
-    return console.env(command.args[0], command.args[1]);
+    console.env(command.args[0], command.args[1]);
+    return outputer({
+      code: 0
+    });
+  });
+  commandSet.add('clear', function(command, outputer, console) {
+    console.clearConsole();
+    return outputer({
+      code: 0
+    });
+  });
+  commandSet.add('', function(command, outputer, console) {
+    return outputer({
+      code: 0
+    });
   });
   commandSet.addFilter('output', 'ls', null, {
     complete: false,

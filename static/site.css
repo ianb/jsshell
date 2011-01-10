@@ -4,15 +4,28 @@ body {
 
 input.input {
   font-family: monospace;
-  background-color: #333;
+  background-color: #555;
   color: #fff;
-  border: #fff 1px solid;
+  border: none;
+  padding-left: 10px;
+  background-image: url("/prompt.png");
+  background-repeat: no-repeat;
+  background-position: 0%, 50%;
+}
+
+.cmd-line {
+  background-color: #000;
+  padding-left: 10px;
+  background-image: url("/prompt.png");
+  background-repeat: no-repeat;
+  background-position: 0%, 50%;
+  display: block;
 }
 
 .output {
   font-family: monospace;
   background-color: #333;
-  color: #ddd;
+  color: #fff;
 }
 
 .interaction {
@@ -22,14 +35,6 @@ input.input {
 .interactive {
   border: 2px solid #000;
   height: 90%;
-}
-
-.prompt {
-  color: #999;
-}
-
-.cmd-line .incomplete {
-  background-color: #888;
 }
 
 span.stderr {
@@ -56,4 +61,13 @@ span.stderr, span.stdout {
 .envs .setting .value {
   font-family: monospace;
   font-size: 117%;
+}
+
+.command-set {
+  border-bottom: 1px solid #000;
+}
+
+.incomplete-command-set {
+  border-left: 5px solid #ff0;
+  border-bottom: 1px dotted #000;
 }
